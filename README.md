@@ -1,6 +1,8 @@
 # WeekPlan
 
 A meal planning app for scheduling weekly dinners, managing recipes, and generating shopping lists.
+See [WeekPlan MCP](https://github.com/antonderegt/week-plan-mcp) on how to use an MCP server to enter the recipes for you.
+See [WeekPlan Watch](https://github.com/antonderegt/week-plan-watch) on how to setup an Apple Watch companion app.
 
 ## Getting started
 
