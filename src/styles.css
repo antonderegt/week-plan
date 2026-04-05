@@ -522,7 +522,7 @@ textarea {
 
 .modal-body {
     margin-top: 12px;
-    overflow: visible;
+    overflow-y: auto;
     flex: 1;
 }
 
