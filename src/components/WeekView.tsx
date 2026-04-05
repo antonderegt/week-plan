@@ -1,17 +1,15 @@
-import React, { useMemo, useState } from 'react';
-import type { MealBlock, Pattern, WeekOverride } from '../types';
+import { useMemo, useState } from 'react';
+import type { MealBlock } from '../types';
 import { addDays, addWeeks, formatWeekRange, getWeekStart } from '../utils/date';
 import {
   aggregateShoppingList,
   expandMealBlocks,
-  findConflicts,
   getPatternById,
   resolvePatternIdForWeek
 } from '../utils/meal';
 import { createId } from '../utils/uuid';
 import MealAssignModal from './MealAssignModal';
 import MealDetailModal from './MealDetailModal';
-import Modal from './Modal';
 import ShoppingListModal from './ShoppingListModal';
 import { useData } from '../store/DataContext';
 
@@ -24,18 +22,7 @@ export default function WeekView() {
   const [assignDayIndex, setAssignDayIndex] = useState<number | null>(null);
   const [detailBlockId, setDetailBlockId] = useState<string | null>(null);
   const [shoppingOpen, setShoppingOpen] = useState(false);
-  const [pendingMeal, setPendingMeal] = useState<{
-    dayIndex: number;
-    recipeId: string;
-    duration: number;
-  } | null>(null);
-  const [conflictingBlocks, setConflictingBlocks] = useState<MealBlock[]>([]);
-  const [pendingSwap, setPendingSwap] = useState<{
-    nextBlocks: MealBlock[];
-    conflictingBlocks: MealBlock[];
-  } | null>(null);
-  const [dragDayIndex, setDragDayIndex] = useState<number | null>(null);
-  const [swapBlockMessage, setSwapBlockMessage] = useState<string | null>(null);
+  const [dragBlockId, setDragBlockId] = useState<string | null>(null);
 
   const baseDate = addWeeks(new Date(), weekOffset);
   const weekStart = getWeekStart(baseDate);
@@ -57,15 +44,7 @@ export default function WeekView() {
     : null;
 
   const detailDurationDays = detailBlock?.durationDays ?? 1;
-  const detailMaxDuration = detailBlock
-    ? (() => {
-        const otherBlocks = activeMealBlocks.filter((b) => b.id !== detailBlock.id);
-        const nextBlockStart = otherBlocks
-          .filter((b) => b.startDayIndex > detailBlock.startDayIndex)
-          .reduce((min, b) => Math.min(min, b.startDayIndex), 7);
-        return Math.min(7 - detailBlock.startDayIndex, nextBlockStart - detailBlock.startDayIndex);
-      })()
-    : 1;
+  const detailMaxDuration = detailBlock ? 7 - detailBlock.startDayIndex : 1;
 
   const handleAddMeal = (dayIndex: number) => {
     setAssignDayIndex(dayIndex);
@@ -73,13 +52,7 @@ export default function WeekView() {
 
   const handleAssignMeal = (recipeId: string, duration: number) => {
     if (assignDayIndex === null) return;
-    const conflicts = findConflicts(activeMealBlocks, assignDayIndex, duration);
-    if (conflicts.length > 0) {
-      setPendingMeal({ dayIndex: assignDayIndex, recipeId, duration });
-      setConflictingBlocks(conflicts);
-    } else {
-      void saveMealBlock(assignDayIndex, recipeId, duration, []);
-    }
+    void saveMealBlock(assignDayIndex, recipeId, duration, []);
     setAssignDayIndex(null);
   };
 
@@ -101,31 +74,6 @@ export default function WeekView() {
     }
   };
 
-  const handleConfirmOverwrite = async () => {
-    if (!pendingMeal) return;
-    await saveMealBlock(pendingMeal.dayIndex, pendingMeal.recipeId, pendingMeal.duration, conflictingBlocks);
-    setPendingMeal(null);
-    setConflictingBlocks([]);
-  };
-
-  const handleCancelOverwrite = () => {
-    setPendingMeal(null);
-    setConflictingBlocks([]);
-  };
-
-  const handleConfirmSwap = async () => {
-    if (!pendingSwap || !weekOverride) return;
-    const resolved = pendingSwap.nextBlocks.filter(
-      (b) => !pendingSwap.conflictingBlocks.some((c) => c.id === b.id)
-    );
-    await upsertWeekOverride({ ...weekOverride, mealBlocks: resolved });
-    setPendingSwap(null);
-  };
-
-  const handleCancelSwap = () => {
-    setPendingSwap(null);
-  };
-
   const handleRemoveBlock = async (blockId: string) => {
     const nextBlocks = activeMealBlocks.filter((block) => block.id !== blockId);
     if (weekOverride) {
@@ -138,11 +86,7 @@ export default function WeekView() {
 
   const handleChangeDuration = async (newDuration: number) => {
     if (!detailBlock) return;
-    const otherBlocks = activeMealBlocks.filter((b) => b.id !== detailBlock.id);
-    const nextBlockStart = otherBlocks
-      .filter((b) => b.startDayIndex > detailBlock.startDayIndex)
-      .reduce((min, b) => Math.min(min, b.startDayIndex), 7);
-    const maxPossible = Math.min(7 - detailBlock.startDayIndex, nextBlockStart - detailBlock.startDayIndex);
+    const maxPossible = 7 - detailBlock.startDayIndex;
     const clamped = Math.max(1, Math.min(newDuration, maxPossible));
     const nextBlocks = activeMealBlocks.map((b) =>
       b.id === detailBlock.id ? { ...b, durationDays: clamped } : b
@@ -163,126 +107,25 @@ export default function WeekView() {
   };
 
   // Drag and drop — only active when weekOverride is set
-  const handleDragStart = (dayIndex: number) => {
-    setDragDayIndex(dayIndex);
+  const handleDragStart = (blockId: string) => {
+    setDragBlockId(blockId);
   };
 
   const handleDragEnd = () => {
-    setDragDayIndex(null);
+    setDragBlockId(null);
   };
 
   const handleDrop = async (targetDayIndex: number) => {
-    if (dragDayIndex === null || dragDayIndex === targetDayIndex || !weekOverride) return;
+    if (dragBlockId === null || !weekOverride) return;
 
-    const sourceDayEntry = dayMap[dragDayIndex];
-    const targetDayEntry = dayMap[targetDayIndex];
+    const sourceBlock = weekOverride.mealBlocks.find((b) => b.id === dragBlockId);
+    if (!sourceBlock || sourceBlock.startDayIndex === targetDayIndex) return;
 
-    if (!sourceDayEntry || sourceDayEntry.isLeftoverDay) return;
+    const nextBlocks = weekOverride.mealBlocks.map((b) =>
+      b.id === sourceBlock.id ? { ...b, startDayIndex: targetDayIndex } : b
+    );
 
-    // Find the source block
-    const sourceBlock = weekOverride.mealBlocks.find((b) => b.id === sourceDayEntry.blockId);
-    if (!sourceBlock) return;
-
-    let nextBlocks: MealBlock[];
-
-    // Returns computed blocks after swap (with overlap adjustment), or null to cancel.
-    // Mutates nextBlocks or calls setPendingSwap when there are third-party conflicts.
-    const computeSwap = (targetBlock: MealBlock, sourceDestDay?: number): MealBlock[] | null => {
-      let swapBlocks = weekOverride!.mealBlocks.map((b) => {
-        if (b.id === sourceBlock.id) return { ...b, startDayIndex: sourceDestDay ?? targetBlock.startDayIndex };
-        if (b.id === targetBlock.id) return { ...b, startDayIndex: sourceBlock.startDayIndex };
-        return b;
-      });
-
-      let movedSourceBlock = swapBlocks.find((b) => b.id === sourceBlock.id)!;
-      const movedTargetBlock = swapBlocks.find((b) => b.id === targetBlock.id)!;
-
-      // Bug 1 fix: check if the two swapped blocks overlap each other
-      const selfOverlap = findConflicts(
-        [movedTargetBlock],
-        movedSourceBlock.startDayIndex,
-        movedSourceBlock.durationDays
-      );
-      if (selfOverlap.length > 0) {
-        const adjustedStart = movedTargetBlock.startDayIndex + movedTargetBlock.durationDays;
-        if (adjustedStart > 6) return null;
-        swapBlocks = swapBlocks.map((b) =>
-          b.id === sourceBlock.id ? { ...b, startDayIndex: adjustedStart } : b
-        );
-        movedSourceBlock = swapBlocks.find((b) => b.id === sourceBlock.id)!;
-      }
-
-      // Check whether the moved source block now overlaps any third-party block
-      const otherBlocks = swapBlocks.filter(
-        (b) => b.id !== sourceBlock.id && b.id !== targetBlock.id
-      );
-      const thirdPartyConflicts = findConflicts(
-        otherBlocks,
-        movedSourceBlock.startDayIndex,
-        movedSourceBlock.durationDays
-      );
-
-      if (thirdPartyConflicts.length > 0) {
-        setPendingSwap({ nextBlocks: swapBlocks, conflictingBlocks: thirdPartyConflicts });
-        return null;
-      }
-      return swapBlocks;
-    };
-
-    // Whether the target day belongs to the block being dragged (e.g. dropping on own leftover)
-    const isSameBlock = targetDayEntry?.blockId === sourceBlock.id;
-
-    if (targetDayEntry && !isSameBlock && !targetDayEntry.isLeftoverDay) {
-      // Swap: exchange startDayIndex of the two cook-day blocks
-      const targetBlock = weekOverride.mealBlocks.find((b) => b.id === targetDayEntry.blockId);
-      if (!targetBlock) return;
-
-      if (sourceBlock.durationDays !== targetBlock.durationDays) {
-        setDragDayIndex(null);
-        setSwapBlockMessage("Can only swap meals of the same duration. Click a recipe to change its number of days.");
-        return;
-      }
-
-      setDragDayIndex(null);
-      const swapped = computeSwap(targetBlock);
-      if (!swapped) return;
-      nextBlocks = swapped;
-    } else if (targetDayEntry && !isSameBlock && targetDayEntry.isLeftoverDay) {
-      // Drop on another block's leftover day → swap with the owning cook-day block
-      const cookBlock = weekOverride.mealBlocks.find((b) => b.id === targetDayEntry.blockId);
-      if (!cookBlock) return;
-
-      if (sourceBlock.durationDays !== cookBlock.durationDays) {
-        setDragDayIndex(null);
-        setSwapBlockMessage("Can only swap meals of the same duration. Click a recipe to change its number of days.");
-        return;
-      }
-
-      setDragDayIndex(null);
-      const swapped = computeSwap(cookBlock, targetDayIndex);
-      if (!swapped) return;
-      nextBlocks = swapped;
-    } else {
-      // Move to empty day (or own leftover day — treat as empty target)
-      // For multi-day blocks, the new span may overlap other blocks: check first.
-      const otherBlocks = weekOverride.mealBlocks.filter((b) => b.id !== sourceBlock.id);
-      const conflicts = findConflicts(otherBlocks, targetDayIndex, sourceBlock.durationDays);
-      if (conflicts.length > 0) {
-        setPendingSwap({
-          nextBlocks: weekOverride.mealBlocks.map((b) =>
-            b.id === sourceBlock.id ? { ...b, startDayIndex: targetDayIndex } : b
-          ),
-          conflictingBlocks: conflicts
-        });
-        setDragDayIndex(null);
-        return;
-      }
-      nextBlocks = weekOverride.mealBlocks.map((b) =>
-        b.id === sourceBlock.id ? { ...b, startDayIndex: targetDayIndex } : b
-      );
-    }
-
-    setDragDayIndex(null);
+    setDragBlockId(null);
     await upsertWeekOverride({ ...weekOverride, mealBlocks: nextBlocks });
   };
 
@@ -355,27 +198,11 @@ export default function WeekView() {
         </div>
       </div>
 
-      <Modal
-        title="Can't swap meals"
-        isOpen={!!swapBlockMessage}
-        onClose={() => setSwapBlockMessage(null)}
-      >
-        <p>{swapBlockMessage}</p>
-      </Modal>
-
       <div className="week-grid">
         {dayNames.map((label, index) => {
           const dayDate = addDays(weekStart, index);
-          const dayEntry = dayMap[index];
-          const mealRecipe = dayEntry ? recipes.find((recipe) => recipe.id === dayEntry.recipeId) : null;
-          const blockDuration = dayEntry
-            ? activeMealBlocks.find((block) => block.id === dayEntry.blockId)?.durationDays ?? 1
-            : 1;
-          const subtitle = dayEntry && dayEntry.isLeftoverDay
-            ? `Leftovers (day ${dayEntry.dayOffset + 1} of ${blockDuration})`
-            : 'Cook day';
-          const isDraggable = weekOverride !== null && dayEntry !== undefined && !dayEntry.isLeftoverDay;
-          const isDragOver = dragDayIndex !== null && dragDayIndex !== index;
+          const dayEntries = dayMap[index] ?? [];
+          const isDragOver = dragBlockId !== null;
           return (
             <div
               key={label}
@@ -389,23 +216,31 @@ export default function WeekView() {
                   {dayDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                 </span>
               </div>
-              {mealRecipe ? (
-                <button
-                  type="button"
-                  className="meal-card"
-                  draggable={isDraggable}
-                  onDragStart={isDraggable ? () => handleDragStart(index) : undefined}
-                  onDragEnd={isDraggable ? handleDragEnd : undefined}
-                  onClick={() => dayEntry && setDetailBlockId(dayEntry.blockId)}
-                >
-                  <div className="meal-title">{mealRecipe.name}</div>
-                  <div className="meal-subtitle">{subtitle}</div>
-                </button>
-              ) : (
-                <button type="button" className="ghost" onClick={() => handleAddMeal(index)}>
-                  Add meal
-                </button>
-              )}
+              {dayEntries.map((entry) => {
+                const mealRecipe = recipes.find((recipe) => recipe.id === entry.recipeId);
+                const blockDuration = activeMealBlocks.find((block) => block.id === entry.blockId)?.durationDays ?? 1;
+                const subtitle = entry.isLeftoverDay
+                  ? `Leftovers (day ${entry.dayOffset + 1} of ${blockDuration})`
+                  : 'Cook day';
+                const isDraggable = weekOverride !== null && !entry.isLeftoverDay;
+                return (
+                  <button
+                    key={entry.blockId}
+                    type="button"
+                    className="meal-card"
+                    draggable={isDraggable}
+                    onDragStart={isDraggable ? () => handleDragStart(entry.blockId) : undefined}
+                    onDragEnd={isDraggable ? handleDragEnd : undefined}
+                    onClick={() => setDetailBlockId(entry.blockId)}
+                  >
+                    <div className="meal-title">{mealRecipe?.name ?? 'Unknown recipe'}</div>
+                    <div className="meal-subtitle">{subtitle}</div>
+                  </button>
+                );
+              })}
+              <button type="button" className="ghost" onClick={() => handleAddMeal(index)}>
+                Add meal
+              </button>
             </div>
           );
         })}
@@ -432,64 +267,6 @@ export default function WeekView() {
       />
 
       <ShoppingListModal isOpen={shoppingOpen} items={shoppingItems} onClose={() => setShoppingOpen(false)} />
-
-      <Modal
-        title="Conflicting meals"
-        isOpen={pendingMeal !== null}
-        onClose={handleCancelOverwrite}
-        footer={
-          <div className="modal-actions">
-            <button type="button" className="ghost" onClick={handleCancelOverwrite}>
-              Cancel
-            </button>
-            <button type="button" className="danger" onClick={() => void handleConfirmOverwrite()}>
-              Overwrite conflicting meals
-            </button>
-          </div>
-        }
-      >
-        <p>This meal overlaps with existing meals. Choose overwrite to replace them.</p>
-        <ul>
-          {conflictingBlocks.map((block) => {
-            const recipe = recipes.find((item) => item.id === block.recipeId);
-            const days = Array.from({ length: block.durationDays }, (_, offset) => dayNames[block.startDayIndex + offset]);
-            return (
-              <li key={block.id}>
-                {recipe?.name ?? 'Unknown recipe'} ({days.join(', ')})
-              </li>
-            );
-          })}
-        </ul>
-      </Modal>
-
-      <Modal
-        title="Conflicting meals"
-        isOpen={pendingSwap !== null}
-        onClose={handleCancelSwap}
-        footer={
-          <div className="modal-actions">
-            <button type="button" className="ghost" onClick={handleCancelSwap}>
-              Cancel
-            </button>
-            <button type="button" className="danger" onClick={() => void handleConfirmSwap()}>
-              Swap and remove conflicts
-            </button>
-          </div>
-        }
-      >
-        <p>This swap would overlap with existing meals. Confirm to remove them.</p>
-        <ul>
-          {pendingSwap?.conflictingBlocks.map((block) => {
-            const recipe = recipes.find((item) => item.id === block.recipeId);
-            const days = Array.from({ length: block.durationDays }, (_, offset) => dayNames[block.startDayIndex + offset]);
-            return (
-              <li key={block.id}>
-                {recipe?.name ?? 'Unknown recipe'} ({days.join(', ')})
-              </li>
-            );
-          })}
-        </ul>
-      </Modal>
     </div>
   );
 }

@@ -21,18 +21,19 @@ export function resolvePatternIdForWeek(date: Date, settings: Settings): string 
   return settings.patternOrder[idx] ?? null;
 }
 
-export function expandMealBlocks(mealBlocks: MealBlock[]): Record<number, DayMealEntry> {
-  const dayMap: Record<number, DayMealEntry> = {};
+export function expandMealBlocks(mealBlocks: MealBlock[]): Record<number, DayMealEntry[]> {
+  const dayMap: Record<number, DayMealEntry[]> = {};
   for (const block of mealBlocks) {
     for (let offset = 0; offset < block.durationDays; offset += 1) {
       const dayIndex = block.startDayIndex + offset;
       if (dayIndex < 0 || dayIndex > 6) continue;
-      dayMap[dayIndex] = {
+      if (!dayMap[dayIndex]) dayMap[dayIndex] = [];
+      dayMap[dayIndex].push({
         blockId: block.id,
         recipeId: block.recipeId,
         isLeftoverDay: offset > 0,
         dayOffset: offset
-      };
+      });
     }
   }
   return dayMap;
