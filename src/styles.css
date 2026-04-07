@@ -549,6 +549,11 @@ textarea {
     max-height: calc(90vh - 200px);
 }
 
+.recipe-editor-scroll {
+    overflow-y: auto;
+    max-height: calc(90vh - 200px);
+}
+
 .shopping-list {
     list-style: none;
     padding: 0;
@@ -561,11 +566,43 @@ textarea {
 }
 
 .shopping-list li {
-    display: flex;
-    justify-content: space-between;
     background: var(--surface-alt);
     padding: 10px 12px;
     border-radius: 12px;
+}
+
+.shopping-list-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.shopping-list-main {
+    display: flex;
+    justify-content: space-between;
+}
+
+.shopping-list-sources {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.recipe-chip {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    cursor: pointer;
+    line-height: 1.6;
+}
+
+.recipe-chip:hover {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
 }
 
 .pattern-list {

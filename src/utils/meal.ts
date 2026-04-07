@@ -72,12 +72,16 @@ export function aggregateShoppingList(
       const existing = totals.get(key);
       if (existing) {
         existing.quantity += item.quantity;
+        if (!existing.sources.some((s) => s.recipeId === recipe.id)) {
+          existing.sources.push({ recipeId: recipe.id, recipeName: recipe.name });
+        }
       } else {
         totals.set(key, {
           ingredientId: item.ingredientId,
           name,
           unit: item.unit,
-          quantity: item.quantity
+          quantity: item.quantity,
+          sources: [{ recipeId: recipe.id, recipeName: recipe.name }]
         });
       }
     }

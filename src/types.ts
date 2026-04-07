@@ -48,6 +48,7 @@ export interface ShoppingItem {
   name: string;
   unit: string;
   quantity: number;
+  sources: { recipeId: string; recipeName: string }[];
 }
 
 export interface WeekOverride {

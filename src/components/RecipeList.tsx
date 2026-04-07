@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import type { Recipe } from '../types';
 import RecipeEditor from './RecipeEditor';
 import { useData } from '../store/DataContext';
 
 export default function RecipeList() {
   const { recipes, ingredients, upsertRecipe, removeRecipe } = useData();
+  const location = useLocation();
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<Recipe | null>(null);
 
@@ -17,6 +19,13 @@ export default function RecipeList() {
     setEditing(recipe);
     setEditorOpen(true);
   };
+
+  useEffect(() => {
+    const id = (location.state as { editRecipeId?: string } | null)?.editRecipeId;
+    if (!id || !recipes.length) return;
+    const recipe = recipes.find((r) => r.id === id);
+    if (recipe) openEdit(recipe);
+  }, [location.state, recipes]);
 
   const handleSave = async (recipe: Recipe) => {
     await upsertRecipe(recipe);

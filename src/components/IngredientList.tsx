@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { Ingredient } from '../types';
 import IngredientEditor from './IngredientEditor';
 import { useData } from '../store/DataContext';
 
 export default function IngredientList() {
-  const { ingredients, upsertIngredient, removeIngredient } = useData();
+  const { ingredients, recipes, upsertIngredient, removeIngredient } = useData();
+  const navigate = useNavigate();
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<Ingredient | null>(null);
 
@@ -47,14 +49,37 @@ export default function IngredientList() {
               <tr>
                 <th>Name</th>
                 <th>Unit</th>
+                <th>Used in</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {ingredients.map((ingredient) => (
+              {ingredients.map((ingredient) => {
+                const used = recipes.filter(r =>
+                  r.ingredients.some(ri => ri.ingredientId === ingredient.id)
+                );
+                return (
                 <tr key={ingredient.id}>
                   <td>{ingredient.name}</td>
                   <td>{ingredient.unit}</td>
+                  <td>
+                    {used.length === 0 ? (
+                      <span style={{ color: 'var(--text-secondary)' }}>—</span>
+                    ) : (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                        {used.map(r => (
+                          <button
+                            key={r.id}
+                            type="button"
+                            className="recipe-chip"
+                            onClick={() => navigate('/recipes', { state: { editRecipeId: r.id } })}
+                          >
+                            {r.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </td>
                   <td className="actions">
                     <button type="button" className="ghost" onClick={() => openEdit(ingredient)}>
                       Edit
@@ -64,7 +89,8 @@ export default function IngredientList() {
                     </button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         ) : (

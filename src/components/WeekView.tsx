@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { MealBlock } from '../types';
 import { addDays, addWeeks, formatWeekRange, getWeekStart } from '../utils/date';
 import {
@@ -18,6 +19,7 @@ const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Satur
 export default function WeekView() {
   const { recipes, ingredients, patterns, settings, weekOverrides, loading, upsertPattern, upsertWeekOverride, removeWeekOverride } = useData();
 
+  const navigate = useNavigate();
   const [weekOffset, setWeekOffset] = useState(0);
   const [assignDayIndex, setAssignDayIndex] = useState<number | null>(null);
   const [detailBlockId, setDetailBlockId] = useState<string | null>(null);
@@ -266,7 +268,15 @@ export default function WeekView() {
         onChangeDuration={(days: number) => void handleChangeDuration(days)}
       />
 
-      <ShoppingListModal isOpen={shoppingOpen} items={shoppingItems} onClose={() => setShoppingOpen(false)} />
+      <ShoppingListModal
+        isOpen={shoppingOpen}
+        items={shoppingItems}
+        onClose={() => setShoppingOpen(false)}
+        onGoToRecipe={(recipeId) => {
+          setShoppingOpen(false);
+          navigate('/recipes', { state: { editRecipeId: recipeId } });
+        }}
+      />
     </div>
   );
 }
