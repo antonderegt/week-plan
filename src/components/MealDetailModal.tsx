@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { Ingredient, Recipe } from '../types';
 import Modal from './Modal';
 
@@ -23,6 +24,8 @@ export default function MealDetailModal({
   maxDuration,
   onChangeDuration
 }: MealDetailModalProps) {
+  const navigate = useNavigate();
+
   if (!recipe) {
     return <Modal title="Meal details" isOpen={isOpen} onClose={onClose}>No recipe selected.</Modal>;
   }
@@ -38,6 +41,9 @@ export default function MealDetailModal({
         <div className="modal-actions">
           <button type="button" className="ghost" onClick={onClose}>
             Close
+          </button>
+          <button type="button" onClick={() => { navigate('/recipes', { state: { editRecipeId: recipe.id } }); onClose(); }}>
+            Edit recipe
           </button>
           {onRemove ? (
             <button type="button" className="danger" onClick={onRemove}>
