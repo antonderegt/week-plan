@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import type { Ingredient, Recipe, RecipeIngredient } from '../types';
 import Modal from './Modal';
 import { createId } from '../utils/uuid';
+import { toTitleCase } from '../utils/string';
 import { useData } from '../store/DataContext';
 
 interface RecipeEditorProps {
@@ -143,7 +144,7 @@ export default function RecipeEditor({
   };
 
   const handleCreateIngredient = async (index: number, name: string, unit: string) => {
-    const newIngredient: Ingredient = { id: createId(), name: name.trim(), unit: unit.trim() };
+    const newIngredient: Ingredient = { id: createId(), name: toTitleCase(name.trim()), unit: unit.trim() };
     try {
       await upsertIngredient(newIngredient);
     } catch {
@@ -185,7 +186,7 @@ export default function RecipeEditor({
                 .filter(Boolean);
               onSave({
                 id: initial?.id ?? createId(),
-                name: name.trim(),
+                name: toTitleCase(name.trim()),
                 ingredients: items,
                 steps
               });

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { Ingredient } from '../types';
 import { createId } from '../utils/uuid';
+import { toTitleCase } from '../utils/string';
 import Modal from './Modal';
 
 interface IngredientEditorProps {
@@ -40,7 +41,7 @@ export default function IngredientEditor({ isOpen, initial, onClose, onSave }: I
               if (!canSave) return;
               onSave({
                 id: initial?.id ?? createId(),
-                name: name.trim(),
+                name: toTitleCase(name.trim()),
                 unit: unit.trim()
               });
             }}
